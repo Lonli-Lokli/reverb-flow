@@ -2,14 +2,24 @@
   "name": "@birthday-party/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "start": "nx run birthday-party:serve"
+  },
   "private": true,
   "dependencies": {
+    "effector": "^23.3.0",
+    "effector-react": "^23.3.0",
+    "file-saver": "^2.0.5",
+    "lucide-react": "^0.525.0",
+    "music-metadata": "^11.4.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-router-dom": "6.29.0"
+    "tone": "^15.1.22",
+    "wavesurfer.js": "^7.9.9"
   },
   "devDependencies": {
+    "@babel/core": "^7.14.5",
+    "@babel/preset-react": "^7.14.5",
     "@eslint/js": "^9.8.0",
     "@nx/eslint": "21.2.1",
     "@nx/eslint-plugin": "21.2.1",
@@ -50,6 +60,7 @@
     "vitest": "^3.0.0"
   },
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "libs/*"
   ]
 }

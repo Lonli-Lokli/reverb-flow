@@ -5,6 +5,18 @@
   "references": [
     {
       "path": "./apps/birthday-party"
+    },
+    {
+      "path": "./libs/audio-uploader"
+    },
+    {
+      "path": "./libs/compact-waveform"
+    },
+    {
+      "path": "./libs/window-controller"
+    },
+    {
+      "path": "./libs/export-modal"
     }
   ]
 }
