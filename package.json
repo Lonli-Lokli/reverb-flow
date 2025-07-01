@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "build": "nx run birthday-party:build",
     "start": "nx run birthday-party:serve"
   },
   "private": true,

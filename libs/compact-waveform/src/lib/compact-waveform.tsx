@@ -4,6 +4,15 @@ import { FC, useRef, useEffect, useState, useCallback } from 'react';
 interface CompactWaveformProps {
   title: string;
   isReversed?: boolean;
+  // Event handlers passed from parent (app layer)
+  onPlay?: () => void;
+  onPause?: () => void;
+  onWindowChange?: (window: { startTime: number; endTime: number; duration: number }) => void;
+  // State passed from parent
+  isPlaying?: boolean;
+  windowSelection?: { startTime: number; endTime: number; duration: number };
+  totalDuration?: number;
+  playbackPosition?: number;
 }
 
 interface DragState {
@@ -16,6 +25,13 @@ interface DragState {
 export const CompactWaveform: FC<CompactWaveformProps> = ({
   title,
   isReversed = false,
+  onPlay,
+  onPause,
+  onWindowChange,
+  isPlaying = false,
+  windowSelection = { startTime: 5, endTime: 35, duration: 30 },
+  totalDuration = 120,
+  playbackPosition = 0,
 }) => {
   const waveformRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<DragState>({
@@ -25,20 +41,20 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
     dragStartTime: 0,
   });
 
-  // Mock state - these will be connected to effector stores
-  const [windowSelection, setWindowSelection] = useState({
-    startTime: 5,
-    endTime: 35,
-    duration: 30,
-  });
-  
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackPosition, setPlaybackPosition] = useState(0);
-  const totalDuration = 120; // Mock total duration
+  // Local state for temporary window selection during drag
+  const [localWindowSelection, setLocalWindowSelection] = useState(windowSelection);
+
+  // Update local state when props change
+  useEffect(() => {
+    setLocalWindowSelection(windowSelection);
+  }, [windowSelection]);
+
+  // Use local selection during drag, otherwise use props
+  const currentSelection = dragState.isDragging ? localWindowSelection : windowSelection;
 
   // Calculate percentages for visual representation
-  const windowStartPercent = (windowSelection.startTime / totalDuration) * 100;
-  const windowWidthPercent = ((windowSelection.endTime - windowSelection.startTime) / totalDuration) * 100;
+  const windowStartPercent = (currentSelection.startTime / totalDuration) * 100;
+  const windowWidthPercent = ((currentSelection.endTime - currentSelection.startTime) / totalDuration) * 100;
   const playbackPercent = (playbackPosition / totalDuration) * 100;
 
   // Format time helper
@@ -58,11 +74,11 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
       isDragging: true,
       dragType,
       dragStartX: e.clientX - rect.left,
-      dragStartTime: dragType === 'start' ? windowSelection.startTime : 
-                    dragType === 'end' ? windowSelection.endTime :
-                    windowSelection.startTime,
+      dragStartTime: dragType === 'start' ? currentSelection.startTime : 
+                    dragType === 'end' ? currentSelection.endTime :
+                    currentSelection.startTime,
     });
-  }, [windowSelection]);
+  }, [currentSelection]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState.isDragging || !waveformRef.current) return;
@@ -72,21 +88,22 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
     const deltaX = currentX - dragState.dragStartX;
     const deltaTime = (deltaX / rect.width) * totalDuration;
 
-    let newStartTime = windowSelection.startTime;
-    let newEndTime = windowSelection.endTime;
+    let newStartTime = currentSelection.startTime;
+    let newEndTime = currentSelection.endTime;
 
     switch (dragState.dragType) {
       case 'start':
-        newStartTime = Math.max(0, Math.min(windowSelection.endTime - 1, dragState.dragStartTime + deltaTime));
+        newStartTime = Math.max(0, Math.min(currentSelection.endTime - 1, dragState.dragStartTime + deltaTime));
         break;
       case 'end':
-        newEndTime = Math.min(totalDuration, Math.max(windowSelection.startTime + 1, dragState.dragStartTime + deltaTime));
+        newEndTime = Math.min(totalDuration, Math.max(currentSelection.startTime + 1, dragState.dragStartTime + deltaTime));
         break;
-      case 'window':
-        const windowDuration = windowSelection.endTime - windowSelection.startTime;
+      case 'window': {
+        const windowDuration = currentSelection.endTime - currentSelection.startTime;
         newStartTime = Math.max(0, Math.min(totalDuration - windowDuration, dragState.dragStartTime + deltaTime));
         newEndTime = newStartTime + windowDuration;
         break;
+      }
     }
 
     const newSelection = {
@@ -95,19 +112,22 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
       duration: newEndTime - newStartTime,
     };
 
-    setWindowSelection(newSelection);
-    // TODO: Dispatch to effector store
-    // windowSelectionChanged(newSelection);
-  }, [dragState, windowSelection, totalDuration]);
+    setLocalWindowSelection(newSelection);
+  }, [dragState, currentSelection, totalDuration]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragState.isDragging) {
+      // Notify parent of window change when drag ends
+      onWindowChange?.(localWindowSelection);
+    }
+    
     setDragState({
       isDragging: false,
       dragType: null,
       dragStartX: 0,
       dragStartTime: 0,
     });
-  }, []);
+  }, [dragState.isDragging, localWindowSelection, onWindowChange]);
 
   // Handle touch events for mobile
   const handleTouchStart = useCallback((e: React.TouchEvent, dragType: 'start' | 'end' | 'window') => {
@@ -120,11 +140,11 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
       isDragging: true,
       dragType,
       dragStartX: touch.clientX - rect.left,
-      dragStartTime: dragType === 'start' ? windowSelection.startTime : 
-                    dragType === 'end' ? windowSelection.endTime :
-                    windowSelection.startTime,
+      dragStartTime: dragType === 'start' ? currentSelection.startTime : 
+                    dragType === 'end' ? currentSelection.endTime :
+                    currentSelection.startTime,
     });
-  }, [windowSelection]);
+  }, [currentSelection]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!dragState.isDragging || !waveformRef.current) return;
@@ -135,21 +155,22 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
     const deltaX = currentX - dragState.dragStartX;
     const deltaTime = (deltaX / rect.width) * totalDuration;
 
-    let newStartTime = windowSelection.startTime;
-    let newEndTime = windowSelection.endTime;
+    let newStartTime = currentSelection.startTime;
+    let newEndTime = currentSelection.endTime;
 
     switch (dragState.dragType) {
       case 'start':
-        newStartTime = Math.max(0, Math.min(windowSelection.endTime - 1, dragState.dragStartTime + deltaTime));
+        newStartTime = Math.max(0, Math.min(currentSelection.endTime - 1, dragState.dragStartTime + deltaTime));
         break;
       case 'end':
-        newEndTime = Math.min(totalDuration, Math.max(windowSelection.startTime + 1, dragState.dragStartTime + deltaTime));
+        newEndTime = Math.min(totalDuration, Math.max(currentSelection.startTime + 1, dragState.dragStartTime + deltaTime));
         break;
-      case 'window':
-        const windowDuration = windowSelection.endTime - windowSelection.startTime;
+      case 'window': {
+        const windowDuration = currentSelection.endTime - currentSelection.startTime;
         newStartTime = Math.max(0, Math.min(totalDuration - windowDuration, dragState.dragStartTime + deltaTime));
         newEndTime = newStartTime + windowDuration;
         break;
+      }
     }
 
     const newSelection = {
@@ -158,17 +179,22 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
       duration: newEndTime - newStartTime,
     };
 
-    setWindowSelection(newSelection);
-  }, [dragState, windowSelection, totalDuration]);
+    setLocalWindowSelection(newSelection);
+  }, [dragState, currentSelection, totalDuration]);
 
   const handleTouchEnd = useCallback(() => {
+    if (dragState.isDragging) {
+      // Notify parent of window change when drag ends
+      onWindowChange?.(localWindowSelection);
+    }
+    
     setDragState({
       isDragging: false,
       dragType: null,
       dragStartX: 0,
       dragStartTime: 0,
     });
-  }, []);
+  }, [dragState.isDragging, localWindowSelection, onWindowChange]);
 
   // Set up event listeners
   useEffect(() => {
@@ -187,16 +213,12 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
     };
   }, [dragState.isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
-  // Handle play/pause
+  // Handle play/pause - now calls parent handlers
   const handlePlayPause = () => {
     if (isPlaying) {
-      setIsPlaying(false);
-      // TODO: Connect to effector
-      // playbackStopped();
+      onPause?.();
     } else {
-      setIsPlaying(true);
-      // TODO: Connect to effector
-      // playbackStarted({ isReversed });
+      onPlay?.();
     }
   };
 
@@ -316,11 +338,11 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
       <div className="mt-3 flex justify-between items-center text-sm">
         <div className="text-gray-600">
           <span className="font-medium">Window:</span>{' '}
-          {formatTime(windowSelection.startTime)} - {formatTime(windowSelection.endTime)}
+          {formatTime(currentSelection.startTime)} - {formatTime(currentSelection.endTime)}
         </div>
         <div className="text-gray-600">
           <span className="font-medium">Duration:</span>{' '}
-          {formatTime(windowSelection.duration)}
+          {formatTime(currentSelection.duration)}
         </div>
       </div>
     </div>

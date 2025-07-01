@@ -9,16 +9,26 @@ import {
   $hasAudio, 
   audioFileChanged,
   windowSelectionChanged,
-  $waveformWindow
+  $waveformWindow,
+  $isPlaying,
+  $playbackPosition,
+  $totalDuration,
+  playbackStarted,
+  playbackStopped,
+  playAudioFx,
+  stopAudioFx
 } from './init';
 import { $selectedFile } from '@birthday-party/audio-uploader';
 
 export const AudioWorkspace = () => {
-  const [selectedFile, hasAudio, audioData, waveformWindow] = useUnit([
+  const [selectedFile, hasAudio, audioData, waveformWindow, isPlaying, playbackPosition, totalDuration] = useUnit([
     $selectedFile,
     $hasAudio,
     $audioData,
-    $waveformWindow
+    $waveformWindow,
+    $isPlaying,
+    $playbackPosition,
+    $totalDuration
   ]);
 
   // Connect audio-uploader to init.ts when file is selected
@@ -27,6 +37,45 @@ export const AudioWorkspace = () => {
       audioFileChanged(selectedFile.file);
     }
   }, [selectedFile]);
+
+  // Handle play/pause for original audio
+  const handlePlayOriginal = () => {
+    if (isPlaying) {
+      playbackStopped();
+      stopAudioFx();
+    } else {
+      playbackStarted({ isReversed: false });
+      if (audioData) {
+        playAudioFx({
+          buffer: audioData.originalBuffer,
+          startTime: waveformWindow.startTime,
+          endTime: waveformWindow.endTime,
+        });
+      }
+    }
+  };
+
+  // Handle play/pause for reversed audio
+  const handlePlayReversed = () => {
+    if (isPlaying) {
+      playbackStopped();
+      stopAudioFx();
+    } else {
+      playbackStarted({ isReversed: true });
+      if (audioData) {
+        playAudioFx({
+          buffer: audioData.reversedBuffer,
+          startTime: waveformWindow.startTime,
+          endTime: waveformWindow.endTime,
+        });
+      }
+    }
+  };
+
+  // Handle window selection changes
+  const handleWindowChange = (newWindow: { startTime: number; endTime: number; duration: number }) => {
+    windowSelectionChanged(newWindow);
+  };
 
   if (!hasAudio) {
     return (
@@ -54,13 +103,39 @@ export const AudioWorkspace = () => {
       </div>
       
       <div className="grid gap-6">
-        <CompactWaveform title="Original Audio" isReversed={false} />
-        <CompactWaveform title="Reversed Audio" isReversed={true} />
+        <CompactWaveform 
+          title="Original Audio" 
+          isReversed={false}
+          onPlay={handlePlayOriginal}
+          onPause={() => {
+            playbackStopped();
+            stopAudioFx();
+          }}
+          onWindowChange={handleWindowChange}
+          isPlaying={isPlaying}
+          windowSelection={waveformWindow}
+          totalDuration={totalDuration}
+          playbackPosition={playbackPosition}
+        />
+        <CompactWaveform 
+          title="Reversed Audio" 
+          isReversed={true}
+          onPlay={handlePlayReversed}
+          onPause={() => {
+            playbackStopped();
+            stopAudioFx();
+          }}
+          onWindowChange={handleWindowChange}
+          isPlaying={isPlaying}
+          windowSelection={waveformWindow}
+          totalDuration={totalDuration}
+          playbackPosition={playbackPosition}
+        />
       </div>
       
       <div className="flex justify-center mt-8">
         <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">
-          Drag the window edges or center to adjust the selection range
+          Drag the window edges or center to adjust the selection range. Click play to hear original or reversed audio.
         </div>
       </div>
       
