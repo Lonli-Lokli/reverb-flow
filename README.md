@@ -1,101 +1,263 @@
-# BirthdayParty
+# 🎵 ReverbFlow - Professional Audio Reversal Studio
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+<div align="center">
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+![ReverbFlow Logo](https://img.shields.io/badge/🎵-ReverbFlow-blue?style=for-the-badge)
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/react-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+**Transform your audio with professional-grade reversal tools**
 
-## Run tasks
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Nx](https://img.shields.io/badge/Nx-143055?style=for-the-badge&logo=nx&logoColor=white)](https://nx.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Effector](https://img.shields.io/badge/Effector-FF6B35?style=for-the-badge&logo=effector&logoColor=white)](https://effector.dev/)
 
-To run the dev server for your app, use:
+[Demo](#-demo) • [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture)
 
-```sh
-npx nx serve birthday-party
+</div>
+
+---
+
+## ✨ Features
+
+### 🎯 **Core Functionality**
+- **🔄 Instant Audio Reversal** - Automatic high-quality audio reversal using Web Audio API
+- **📁 Multi-Format Support** - MP3, WAV, FLAC, M4A up to 50MB
+- **🎬 YouTube Integration** - Direct audio extraction from YouTube URLs
+- **⚡ Real-Time Processing** - Instant preview without server uploads
+
+### 🎨 **Professional Interface**
+- **📱 Mobile-First Design** - Fully responsive with touch controls
+- **🖱️ Drag & Drop Upload** - Intuitive file selection
+- **🎛️ Interactive Waveforms** - Visual audio representation with draggable selection
+- **🎯 Precision Controls** - Frame-accurate window selection
+- **🎵 Dual Playback** - Compare original and reversed audio side-by-side
+
+### 🔧 **Advanced Controls**
+- **📐 Window Selection** - Drag start/end points or move entire selection
+- **⏯️ Synchronized Playback** - Play specific audio segments
+- **📊 Real-Time Visualization** - Live waveform updates
+- **💾 Export Options** - Multiple format and quality settings
+
+### 🏗️ **Technical Excellence**
+- **🧩 Modular Architecture** - Nx monorepo with library separation
+- **🔄 State Management** - Effector for predictable state flow
+- **🎨 Modern UI** - Tailwind CSS with glass-morphism effects
+- **⚡ Performance Optimized** - Efficient audio processing and rendering
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+```bash
+Node.js 18+ and npm
 ```
 
-To create a production bundle:
+### Installation
 
-```sh
-npx nx build birthday-party
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/birthday-party.git
+cd birthday-party
+
+# Install dependencies
+npm install
+
+# Start development server
+npm start
 ```
 
-To see all available targets to run for a project, run:
+The application will be available at `http://localhost:4200`
 
-```sh
-npx nx show project birthday-party
+---
+
+## 💡 Usage
+
+### 1. **Upload Audio**
+- **Drag & Drop**: Simply drag audio files into the upload area
+- **File Browser**: Click to browse and select files
+- **YouTube**: Paste YouTube URL for automatic audio extraction
+
+### 2. **Edit Selection**
+- **Drag Edges**: Resize selection window by dragging start/end handles
+- **Move Window**: Drag center area to move entire selection
+- **Touch Support**: Full mobile gesture support
+
+### 3. **Play & Compare**
+- **Original Audio**: Blue play button for source audio
+- **Reversed Audio**: Red play button for reversed version
+- **Window Playback**: Only selected portion plays
+
+### 4. **Export Results**
+- Multiple format options (MP3, WAV, FLAC)
+- Quality settings (320kbps, 192kbps, 128kbps)
+- Original or reversed versions
+
+---
+
+## 🏗️ Architecture
+
+### **Nx Monorepo Structure**
+```
+birthday-party/
+├── apps/
+│   └── birthday-party/          # Main React application
+├── libs/
+│   ├── audio-uploader/          # File upload component
+│   ├── compact-waveform/        # Waveform visualization
+│   ├── export-modal/            # Export functionality
+│   └── window-controller/       # Audio window controls
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Add new projects
-
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-Use the plugin's generator to create new projects.
-
-To generate a new application, use:
-
-```sh
-npx nx g @nx/react:app demo
+### **State Management Flow**
+```mermaid
+graph TD
+    A[Audio Upload] --> B[init.ts]
+    B --> C[Audio Processing]
+    C --> D[Waveform Display]
+    D --> E[User Interaction]
+    E --> F[Playback Control]
+    F --> B
 ```
 
-To generate a new library, use:
+### **Libraries & Responsibilities**
 
-```sh
-npx nx g @nx/react:lib mylib
+| Library | Purpose | Exports |
+|---------|---------|---------|
+| `audio-uploader` | File upload, YouTube download | `AudioUploader`, effector stores |
+| `compact-waveform` | Waveform visualization, drag controls | `CompactWaveform` |
+| `export-modal` | Audio export functionality | `ExportModal` |
+| `window-controller` | Playback controls | `WindowController` |
+
+---
+
+## 🛠️ Development
+
+### **Available Scripts**
+
+```bash
+# Development
+npm start                    # Start dev server
+npm run build               # Build for production
+npm test                    # Run tests
+npm run lint               # Lint code
+
+# Nx specific
+npx nx serve birthday-party         # Serve main app
+npx nx build audio-uploader         # Build specific library
+npx nx test compact-waveform        # Test specific library
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+### **Technology Stack**
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| **Framework** | React 19 | UI library |
+| **Language** | TypeScript | Type safety |
+| **Build** | Nx 21.2.1 | Monorepo tooling |
+| **Styling** | Tailwind CSS | Utility-first CSS |
+| **State** | Effector | Predictable state management |
+| **Audio** | Web Audio API | Audio processing |
+| **Icons** | Lucide React | Icon system |
+| **Development** | Vite | Fast build tool |
 
-## Set up CI!
+---
 
-### Step 1
+## 🎨 Design System
 
-To connect to Nx Cloud, run the following command:
+### **Color Palette**
+- **Primary Blue**: Original audio controls
+- **Primary Red**: Reversed audio controls  
+- **Neutral Grays**: Interface elements
+- **Gradient Backgrounds**: Modern glass-morphism effects
 
-```sh
-npx nx connect
+### **Typography**
+- **Headings**: Inter/System font stack
+- **Body**: Optimized for readability
+- **Monospace**: Code and technical data
+
+### **Components**
+- **Glass Cards**: Semi-transparent backgrounds with backdrop blur
+- **Interactive Elements**: Hover states and smooth transitions
+- **Responsive Grid**: Mobile-first layout system
+
+---
+
+## 🔧 Configuration
+
+### **Audio Settings**
+```typescript
+// Supported formats
+const SUPPORTED_FORMATS = [
+  'audio/mpeg',   // MP3
+  'audio/wav',    // WAV  
+  'audio/flac',   // FLAC
+  'audio/mp4',    // M4A
+];
+
+// File size limit
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+### **Tailwind Configuration**
+```javascript
+// tailwind.config.js
+module.exports = {
+  content: [
+    './src/**/*.{ts,tsx,html}',
+    './libs/**/*.{ts,tsx,html}',
+  ],
+  theme: {
+    extend: {
+      // Custom design tokens
+    },
+  },
+};
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-## Install Nx Console
+## 🤝 Contributing
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### **Development Workflow**
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
-## Useful links
+### **Code Standards**
+- TypeScript for type safety
+- ESLint + Prettier for code formatting
+- Conventional Commits for commit messages
+- Component-driven development
 
-Learn more:
+---
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/tutorials/react-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## 📄 License
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Web Audio API** - For powerful browser-based audio processing
+- **Nx Team** - For excellent monorepo tooling
+- **Tailwind CSS** - For rapid UI development
+- **Effector** - For predictable state management
+- **Lucide** - For beautiful icon system
+
+---
+
+<div align="center">
+
+**Built with ❤️ and modern web technologies**
+
+[⭐ Star this repo](https://github.com/yourusername/birthday-party) | [🐛 Report Bug](https://github.com/yourusername/birthday-party/issues) | [💡 Request Feature](https://github.com/yourusername/birthday-party/issues)
+
+</div>
