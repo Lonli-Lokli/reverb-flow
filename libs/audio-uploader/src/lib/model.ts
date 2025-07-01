@@ -1,4 +1,8 @@
+import { Innertube, ProtoUtils, UniversalCache, Utils } from 'youtubei.js';
+import { BG } from 'bgutils-js';
+
 import { createEvent, createEffect, createStore, sample } from 'effector';
+import { createAction } from 'effector-action';
 
 // --- Types & Constants ---
 type FileInfo = {
@@ -53,6 +57,21 @@ sample({
   target: $selectedFile,
 });
 
+createAction({
+  clock: youtubeUrlChanged,
+  target: { $youtubeUrl },
+  fn: (target, change) => {
+    // Only update if the URL is a valid YouTube link
+    if (
+      /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(change.trim())
+    ) {
+      target.$youtubeUrl(change);
+    } else {
+      target.$youtubeUrl('');
+      alert('Invalid YouTube URL');
+    }
+  },
+});
 sample({
   clock: youtubeUrlChanged,
   target: $youtubeUrl,
@@ -116,18 +135,52 @@ uploadFileFx.use(async (file) => {
 });
 
 downloadFromYoutubeFx.use(async (url: string): Promise<FileInfo> => {
-  // Implement YouTube audio download logic here
-  const response = await fetch('/api/youtube-download', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+  const visitorData = ProtoUtils.encodeVisitorData(
+    Utils.generateRandomString(11),
+    Math.floor(Date.now() / 1000)
+  );
+
+  // Immediately mint a cold start token so we can start playback without delays.
+  const coldStartToken = BG.PoToken.generateColdStartToken(visitorData);
+  const poToken = await getPo(visitorData);
+
+  const yt = await Innertube.create({
+    po_token: poToken || coldStartToken,
+    visitor_data: visitorData,
+    fetch: fetchFn,
+    generate_session_locally: true,
+    cache: new UniversalCache(false),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to download audio from YouTube');
+  const endpoint = await yt.resolveURL(url);
+
+  if (!endpoint.payload.videoId) {
+    throw new Error('Failed to resolve Video ID');
   }
 
-  const blob = await response.blob();
+  const audioStream = await yt.download(endpoint.payload.videoId, {
+    type: 'audio',
+    quality: 'best',
+    client: 'YTMUSIC',
+  });
+
+  // Convert ReadableStream<Uint8Array> to Blob
+  const reader = audioStream.getReader();
+  const chunks: Uint8Array[] = [];
+  let done = false;
+  while (!done) {
+    const { value, done: isDone } = await reader.read();
+    if (value) chunks.push(value);
+    done = isDone;
+  }
+  const totalLength = chunks.reduce((acc, cur) => acc + cur.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  const blob = new Blob([merged], { type: 'audio/mpeg' });
   const file = new File([blob], 'youtube-audio.mp3', { type: 'audio/mpeg' });
 
   return {
@@ -137,3 +190,78 @@ downloadFromYoutubeFx.use(async (url: string): Promise<FileInfo> => {
     type: file.type,
   };
 });
+
+function fetchFn(input: RequestInfo | URL, init?: RequestInit) {
+  const url =
+    typeof input === 'string'
+      ? new URL(input)
+      : input instanceof URL
+      ? input
+      : new URL(input.url);
+
+  // Transform the url for use with our proxy.
+  url.searchParams.set('__host', url.host);
+  url.host = 'localhost:8080';
+  url.protocol = 'http';
+
+  const headers = init?.headers
+    ? new Headers(init.headers)
+    : input instanceof Request
+    ? input.headers
+    : new Headers();
+
+  // Now serialize the headers.
+  url.searchParams.set('__headers', JSON.stringify([...headers as any]));
+
+  // Copy over the request.
+  const request = new Request(
+    url,
+    input instanceof Request ? input : undefined
+  );
+
+  headers.delete('user-agent');
+
+  return fetch(
+    request,
+    init
+      ? {
+          ...init,
+          headers,
+        }
+      : {
+          headers,
+        }
+  );
+}
+
+async function getPo(identifier: string): Promise<string | undefined> {
+  const requestKey = 'O43z0dpjhgX20SCx4KAo';
+
+  const bgConfig = {
+    fetch: (input: string | URL | globalThis.Request, init?: RequestInit) =>
+      fetch(input, init),
+    globalObj: window,
+    requestKey,
+    identifier,
+  };
+
+  const bgChallenge = await BG.Challenge.create(bgConfig);
+
+  if (!bgChallenge) throw new Error('Could not get challenge');
+
+  const interpreterJavascript =
+    bgChallenge.interpreterJavascript
+      .privateDoNotAccessOrElseSafeScriptWrappedValue;
+
+  if (interpreterJavascript) {
+    new Function(interpreterJavascript)();
+  } else throw new Error('Could not load VM');
+
+  const poTokenResult = await BG.PoToken.generate({
+    program: bgChallenge.program,
+    globalName: bgChallenge.globalName,
+    bgConfig,
+  });
+
+  return poTokenResult.poToken;
+}

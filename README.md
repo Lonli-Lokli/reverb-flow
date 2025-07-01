@@ -2,9 +2,8 @@
 
 <div align="center">
 
-<img src="images/logo.svg" alt="ReverbFlow Logo" width="120" height="120" 
+<img src="images/logo.svg" alt="ReverbFlow Logo" width="240" height="240" 
 style="margin-bottom: 1rem;" />
-
 ![ReverbFlow Logo](https://img.shields.io/badge/🎵-ReverbFlow-blue?style=for-the-badge)
 
 **Transform your audio with professional-grade reversal tools**
@@ -15,7 +14,7 @@ style="margin-bottom: 1rem;" />
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Effector](https://img.shields.io/badge/Effector-FF6B35?style=for-the-badge&logo=effector&logoColor=white)](https://effector.dev/)
 
-[Demo](#-demo) • [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture)
+[Demo](https://reverb-flow.vercel.app/) • [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture)
 
 </div>
 

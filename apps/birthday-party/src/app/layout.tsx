@@ -2,6 +2,7 @@ import { CompactWaveform } from '@birthday-party/compact-waveform';
 
 import { $audioDuration, exportClicked } from './model';
 import { useUnit } from 'effector-react';
+import { ErrorDisplay } from './error';
 
 export const AudioWorkspace = () => {
   const audioDuration = useUnit($audioDuration);
@@ -25,6 +26,8 @@ export const AudioWorkspace = () => {
         <CompactWaveform title="Original Audio" id="original" />
         <CompactWaveform title="Reversed Audio" id="reversed" />
       </div>
+
+      <ErrorDisplay />
 
       <div className="flex justify-center mt-8">
         <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">

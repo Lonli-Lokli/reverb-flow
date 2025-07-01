@@ -5,6 +5,14 @@
 /* ...existing code... */
 
  html, body {
-    margin: 0 !important;
+   margin: 0 !important;
     padding: 0 !important;
+    width: 100vw;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    /* Prevent unwanted scrollbars on mobile */
+    overscroll-behavior: contain;
+    touch-action: manipulation;
 }

@@ -22,3 +22,8 @@ sample({
   clock: compactWaveform.durationChanged,
   target: app.audioDurationChanged,
 })
+
+sample({
+  clock: compactWaveform.errorOccurred,
+  target: app.$error,
+})

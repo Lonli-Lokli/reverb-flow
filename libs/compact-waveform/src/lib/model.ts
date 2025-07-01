@@ -7,6 +7,37 @@ import RegionsPlugin, {
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 
 const ffmpeg = new FFmpeg();
+const audioContexts = new Map<number, AudioContext>();
+
+// A factory function to get or create an AudioContext for a specific sample rate
+const getAudioContext = (sampleRate: number): AudioContext => {
+  if (audioContexts.has(sampleRate)) {
+    return audioContexts.get(sampleRate)!;
+  }
+
+  try {
+    const context = new (window.AudioContext ||
+      (window as any).webkitAudioContext)({
+      sampleRate: sampleRate,
+    });
+    audioContexts.set(sampleRate, context);
+    return context;
+  } catch (e) {
+    console.error(
+      `Failed to create an AudioContext with sample rate ${sampleRate}. Falling back.`,
+      e
+    );
+    // Fallback for older browsers or systems that don't support specifying sample rate
+    const fallbackKey = 0; // Use 0 as the key for the default context
+    if (audioContexts.has(fallbackKey)) {
+      return audioContexts.get(fallbackKey)!;
+    }
+    const fallbackContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
+    audioContexts.set(fallbackKey, fallbackContext);
+    return fallbackContext;
+  }
+};
 
 export const audioSelected = createEvent<{
   file: File;
@@ -37,7 +68,7 @@ const $waveforms = createStore<Record<string, WaveSurfer>>({});
 const $regions = createStore<Record<string, Region>>({});
 export const $dataState = createStore<Record<string, boolean>>({});
 const $trackName = createStore<string>('Track');
-
+export const errorOccurred = createEvent<Error>();
 const processAudioFx = createEffect<
   {
     file: File;
@@ -100,9 +131,15 @@ const exportRegionsFx = createEffect<
   },
   void
 >();
-processAudioFx.failData.watch(console.error);
-mirrorRegionFx.failData.watch(console.error);
-exportRegionsFx.failData.watch(console.error);
+
+sample({
+  clock: [
+    processAudioFx.failData,
+    mirrorRegionFx.failData,
+    exportRegionsFx.failData,
+  ],
+  target: errorOccurred,
+});
 
 sample({
   clock: exportClicked,
@@ -115,12 +152,31 @@ sample({
   target: exportRegionsFx,
 });
 processAudioFx.use(async ({ file, originalId, reversedId }) => {
-  const audioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)();
   const arrayBuffer = await file.arrayBuffer();
 
+  // --- Step 1: Initial "offline" decode to get the true sample rate ---
+  // We create a temporary, throwaway context for this.
+  const tempContext = new (window.AudioContext ||
+    (window as any).webkitAudioContext)();
+  const preliminaryBuffer = await tempContext.decodeAudioData(
+    arrayBuffer.slice(0)
+  ); // Use slice to create a copy
+  const sourceSampleRate = preliminaryBuffer.sampleRate;
+  await tempContext.close(); // Clean up the temporary context
+
+  console.log(`Original file sample rate detected: ${sourceSampleRate} Hz`);
+
+  // --- Step 2: Get or create the main AudioContext with the CORRECT sample rate ---
+  const audioContext = getAudioContext(sourceSampleRate);
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
   const originalAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-  const reversedAudioBuffer = reverseAudioBuffer(originalAudioBuffer);
+  const reversedAudioBuffer = reverseAudioBuffer(
+    originalAudioBuffer,
+    audioContext
+  );
 
   // Create a WaveSurfer instance for the original audio
   const originalWaveform = WaveSurfer.create({
@@ -159,6 +215,12 @@ processAudioFx.use(async ({ file, originalId, reversedId }) => {
       waveformId: originalId,
     });
   });
+  originalWaveform.on('finish', () => {
+    playButtonClicked({
+      waveformId: originalId,
+      action: 'pause',
+    });
+  });
 
   reversedWaveform.on('decode', (duration) => {
     dataLoaded(reversedId);
@@ -173,9 +235,17 @@ processAudioFx.use(async ({ file, originalId, reversedId }) => {
       waveformId: reversedId,
     });
   });
+
+  reversedWaveform.on('finish', () => {
+    playButtonClicked({
+      waveformId: reversedId,
+      action: 'pause',
+    });
+  });
+
   await Promise.all([
-    originalWaveform.loadBlob(audioBufferToBlob(originalAudioBuffer)),
-    reversedWaveform.loadBlob(audioBufferToBlob(reversedAudioBuffer)),
+    originalWaveform.loadBlob(audioBufferToWavBlob(originalAudioBuffer)),
+    reversedWaveform.loadBlob(audioBufferToWavBlob(reversedAudioBuffer)),
   ]);
 
   originalRegion.enableDragSelection({
@@ -274,9 +344,9 @@ sample({
 
 sample({
   clock: regionCreated,
-  fn: r => r.region.end - r.region.start,
-  target: durationChanged
-})
+  fn: (r) => r.region.end - r.region.start,
+  target: durationChanged,
+});
 createAction({
   clock: regionUpdated,
   source: { $waveforms, $regions },
@@ -336,9 +406,10 @@ playRegionsFx.use(({ action, regions, waveforms, waveformId }) => {
   });
 });
 
-function reverseAudioBuffer(audioBuffer: AudioBuffer): AudioBuffer {
-  const audioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)();
+function reverseAudioBuffer(
+  audioBuffer: AudioBuffer,
+  audioContext: AudioContext
+): AudioBuffer {
   const reversedBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
@@ -366,9 +437,9 @@ function audioBufferToBlob(audioBuffer: AudioBuffer): Blob {
   const view = new DataView(arrayBuffer);
 
   // WAV header
-  const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
     }
   };
 
@@ -423,12 +494,14 @@ exportRegionsFx.use(async ({ regions, waveforms, options, trackName }) => {
   const buffer1 = extractBuffer(
     waveforms['original'].getDecodedData()!,
     regions['original'].start,
-    regions['original'].end
+    regions['original'].end,
+    getAudioContext(waveforms['original'].getDecodedData()!.sampleRate) // Pass the correct context
   );
   const buffer2 = extractBuffer(
     waveforms['reversed'].getDecodedData()!,
     regions['reversed'].start,
-    regions['reversed'].end
+    regions['reversed'].end,
+    getAudioContext(waveforms['reversed'].getDecodedData()!.sampleRate) // Pass the correct context
   );
 
   // Prepare WAV files
@@ -445,7 +518,7 @@ exportRegionsFx.use(async ({ regions, waveforms, options, trackName }) => {
   await ffmpeg.exec([
     '-i',
     'input1.wav',
-    '-q:a',
+    '-b:a',
     `${bitrate}k`,
     '-vn',
     'output1.mp3',
@@ -455,7 +528,7 @@ exportRegionsFx.use(async ({ regions, waveforms, options, trackName }) => {
   await ffmpeg.exec([
     '-i',
     'input2.wav',
-    '-q:a',
+    '-b:a',
     `${bitrate}k`,
     '-vn',
     'output2.mp3',
@@ -475,10 +548,9 @@ exportRegionsFx.use(async ({ regions, waveforms, options, trackName }) => {
 export function extractBuffer(
   originalData: AudioBuffer,
   start: number,
-  end: number
+  end: number,
+  audioContext: AudioContext // Receive the context
 ): AudioBuffer {
-  const audioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)();
   const sampleRate = originalData.sampleRate;
   const numChannels = originalData.numberOfChannels;
   const startSample = Math.floor(start * sampleRate);
@@ -501,7 +573,8 @@ export function extractBuffer(
 export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   const numChannels = buffer.numberOfChannels;
   const sampleRate = buffer.sampleRate;
-  const bitDepth = 16;
+  const bitDepth = 32; // Use 32-bit float for maximum quality
+  const format = 3; // 3 = IEEE float
 
   const blockAlign = numChannels * (bitDepth / 8);
   const byteRate = sampleRate * blockAlign;
@@ -532,7 +605,7 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   writeString('WAVE');
   writeString('fmt ');
   writeUint32(16); // Subchunk1Size
-  writeUint16(1); // PCM
+  writeUint16(format); // AudioFormat (1 = PCM, 3 = IEEE float)
   writeUint16(numChannels);
   writeUint32(sampleRate);
   writeUint32(byteRate);
@@ -541,13 +614,12 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   writeString('data');
   writeUint32(wavLength);
 
-  // PCM samples
+  // PCM samples (as 32-bit floats)
   for (let i = 0; i < buffer.length; i++) {
     for (let ch = 0; ch < numChannels; ch++) {
       const sample = buffer.getChannelData(ch)[i];
-      const s = Math.max(-1, Math.min(1, sample));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-      offset += 2;
+      view.setFloat32(offset, sample, true); // Write as float32
+      offset += 4;
     }
   }
 
