@@ -10,7 +10,7 @@ export const AudioWorkspace = () => {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-gray-600">
-            Sample duration: {Math.floor(audioDuration / 60)}
+            Sample duration: {audioDuration} seconds
           </p>
         </div>
         <button
