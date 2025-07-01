@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00AEEF"/>
+      <stop offset="1" stop-color="#7F00FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Symmetric waveform -->
+  <path d="M8,32 
+           Q16,8 24,32 
+           Q32,56 40,32 
+           Q48,8 56,32" 
+        stroke="url(#gradient)" 
+        stroke-width="3" 
+        fill="none" 
+        stroke-linecap="round"/>
+
+</svg>

@@ -142,6 +142,8 @@ export const AudioUploader: FC<PropsWithChildren> = ({ children }) => {
             accept="audio/*,.mp3,.wav,.flac,.m4a"
             className="hidden"
             onChange={handleFileInputChange}
+            placeholder="Select an audio file"
+            title="Select an audio file to upload"
           />
           
           <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 group-hover:from-blue-200 group-hover:to-blue-300 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-all duration-300 shadow-sm">

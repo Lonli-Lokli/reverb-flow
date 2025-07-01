@@ -2,6 +2,9 @@
 
 <div align="center">
 
+<img src="images/logo.svg" alt="ReverbFlow Logo" width="120" height="120" 
+style="margin-bottom: 1rem;" />
+
 ![ReverbFlow Logo](https://img.shields.io/badge/🎵-ReverbFlow-blue?style=for-the-badge)
 
 **Transform your audio with professional-grade reversal tools**

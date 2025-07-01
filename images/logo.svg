@@ -1,0 +1,25 @@
+<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="280" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00AEEF"/>
+      <stop offset="1" stop-color="#7F00FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon: Reversed wave -->
+  <g transform="translate(10,10)">
+    <path d="M0,30 Q10,0 20,30 T40,30 T60,30 T80,30" stroke="url(#gradient)" stroke-width="3" fill="none"/>
+    <path d="M80,30 L75,25 M80,30 L75,35" stroke="#7F00FF" stroke-width="2"/> <!-- Arrow -->
+  </g>
+
+  <!-- Text: ReverbFlow -->
+  <g font-family="Segoe UI, sans-serif" font-weight="600" font-size="26" transform="translate(100, 45)">
+    <text fill="url(#gradient)">Reverb</text>
+    <text x="105" fill="#333">Flow</text>
+  </g>
+
+  <!-- Tagline -->
+  <g font-family="Segoe UI, sans-serif" font-size="12" transform="translate(100, 65)">
+    <text fill="#666">Transform your audio with professional-grade reversal tools</text>
+  </g>
+</svg>
