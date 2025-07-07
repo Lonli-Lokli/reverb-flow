@@ -24,6 +24,16 @@ sample({
 })
 
 sample({
+  clock: app.userDurationChanged,
+  target: compactWaveform.userDurationChanged
+})
+sample({
   clock: compactWaveform.errorOccurred,
   target: app.$error,
+})
+
+sample({
+  clock: app.userDurationChanged,
+  fn: (duration) => ({ duration }),
+  target: compactWaveform.userRegionUpdateRequested,
 })

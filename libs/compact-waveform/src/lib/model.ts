@@ -58,9 +58,15 @@ export const playButtonClicked = createEvent<{
   waveformId: string;
   action: 'play' | 'pause';
 }>();
+
+export const userRegionUpdateRequested = createEvent<{
+  duration: number;
+}>();
+
 const dataLoaded = createEvent<string>();
 export const exportClicked = createEvent();
 export const durationChanged = createEvent<number>();
+export const userDurationChanged = createEvent<number>();
 
 const $audios = createStore<Record<string, AudioBuffer>>({});
 export const $playingState = createStore<Record<string, boolean>>({});
@@ -98,13 +104,22 @@ const mirrorRegionFx = createEffect<
   },
   void
 >();
-
+const logErrorFx = createEffect<Error, void>(console.error);
 const playRegionsFx = createEffect<
   {
     regions: Record<string, Region>;
     waveforms: Record<string, WaveSurfer>;
     action: 'play' | 'pause';
     waveformId: string;
+  },
+  void
+>();
+
+const updateRegionsFromUserInputFx = createEffect<
+  {
+    duration: number;
+    regions: Record<string, Region>;
+    waveforms: Record<string, WaveSurfer>;
   },
   void
 >();
@@ -138,7 +153,7 @@ sample({
     mirrorRegionFx.failData,
     exportRegionsFx.failData,
   ],
-  target: errorOccurred,
+  target: [errorOccurred, logErrorFx]
 });
 
 sample({
@@ -151,6 +166,18 @@ sample({
   }),
   target: exportRegionsFx,
 });
+
+sample({
+  clock: userRegionUpdateRequested,
+  source: { regions: $regions, waveforms: $waveforms },
+  fn: ({ regions, waveforms }, { duration }) => ({
+    duration,
+    regions,
+    waveforms,
+  }),
+  target: updateRegionsFromUserInputFx,
+});
+
 processAudioFx.use(async ({ file, originalId, reversedId }) => {
   const arrayBuffer = await file.arrayBuffer();
 
@@ -178,98 +205,18 @@ processAudioFx.use(async ({ file, originalId, reversedId }) => {
     audioContext
   );
 
-  // Create a WaveSurfer instance for the original audio
-  const originalWaveform = WaveSurfer.create({
-    container: `#${originalId}`,
-    waveColor: '#4F4A85',
-    progressColor: '#383351',
-    sampleRate: originalAudioBuffer.sampleRate,
-    backend: 'WebAudio',
-  });
-
-  // Create a WaveSurfer instance for the reversed audio
-  const reversedWaveform = WaveSurfer.create({
-    container: `#${reversedId}`,
-    waveColor: '#4F4A85',
-    progressColor: '#383351',
-    sampleRate: originalAudioBuffer.sampleRate,
-    backend: 'WebAudio',
-  });
-
-  const originalRegion = RegionsPlugin.create();
-  originalWaveform.registerPlugin(originalRegion);
-
-  const reversedRegion = RegionsPlugin.create();
-  reversedWaveform.registerPlugin(reversedRegion);
-
-  originalWaveform.on('decode', (duration) => {
-    dataLoaded(originalId);
-    regionCreated({
-      region: originalRegion.addRegion({
-        start: 0,
-        end: Math.min(10, duration),
-        color: randomColor(),
-        drag: true,
-        resize: true,
-      }),
-      waveformId: originalId,
-    });
-  });
-  originalWaveform.on('finish', () => {
-    playButtonClicked({
-      waveformId: originalId,
-      action: 'pause',
-    });
-  });
-
-  reversedWaveform.on('decode', (duration) => {
-    dataLoaded(reversedId);
-    regionCreated({
-      region: reversedRegion.addRegion({
-        start: Math.max(0, duration - 10),
-        end: duration,
-        color: randomColor(),
-        drag: true,
-        resize: true,
-      }),
-      waveformId: reversedId,
-    });
-  });
-
-  reversedWaveform.on('finish', () => {
-    playButtonClicked({
-      waveformId: reversedId,
-      action: 'pause',
-    });
-  });
-
-  await Promise.all([
-    originalWaveform.loadBlob(audioBufferToWavBlob(originalAudioBuffer)),
-    reversedWaveform.loadBlob(audioBufferToWavBlob(reversedAudioBuffer)),
-  ]);
-
-  originalRegion.enableDragSelection({
-    color: 'rgba(255, 0, 0, 0.1)',
-  });
-
-  reversedRegion.enableDragSelection({
-    color: 'rgba(255, 0, 0, 0.1)',
-  });
-
-  originalRegion.on('region-updated', (region) => {
-    regionUpdated({
-      waveformId: originalId,
-      region: region,
-    });
-    console.log('Updated region', region);
-  });
-
-  reversedRegion.on('region-updated', (region) => {
-    regionUpdated({
-      waveformId: reversedId,
-      region: region,
-    });
-  });
+  const { waveform: originalWaveform } = await initializeWaveform(
+    originalId,
+    originalAudioBuffer,
+    () => 0,
+    (duration) => Math.min(10, duration)
+  );
+  const { waveform: reversedWaveform } = await initializeWaveform(
+    reversedId,
+    reversedAudioBuffer,
+    (duration) => Math.max(0, duration - 10),
+    (duration) => duration
+  );
 
   return {
     original: {
@@ -406,6 +353,22 @@ playRegionsFx.use(({ action, regions, waveforms, waveformId }) => {
   });
 });
 
+updateRegionsFromUserInputFx.use(({ duration, regions, waveforms }) => {
+  Object.entries(regions).forEach(([id, region]) => {
+    if (waveforms[id]) {
+      const totalDuration = waveforms[id].getDuration();
+
+      const start = regions[id]!.start;
+      const end = Math.min(duration, totalDuration);
+
+      region.setOptions({
+        start,
+        end,
+      });
+    }
+  });
+});
+
 function reverseAudioBuffer(
   audioBuffer: AudioBuffer,
   audioContext: AudioContext
@@ -426,55 +389,6 @@ function reverseAudioBuffer(
   }
 
   return reversedBuffer;
-}
-
-function audioBufferToBlob(audioBuffer: AudioBuffer): Blob {
-  const length = audioBuffer.length;
-  const numberOfChannels = audioBuffer.numberOfChannels;
-  const sampleRate = audioBuffer.sampleRate;
-
-  const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
-  const view = new DataView(arrayBuffer);
-
-  // WAV header
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + length * numberOfChannels * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-  view.setUint16(32, numberOfChannels * 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, length * numberOfChannels * 2, true);
-
-  // Convert audio data
-  let offset = 44;
-  for (let i = 0; i < length; i++) {
-    for (let channel = 0; channel < numberOfChannels; channel++) {
-      const sample = Math.max(
-        -1,
-        Math.min(1, audioBuffer.getChannelData(channel)[i])
-      );
-      view.setInt16(
-        offset,
-        sample < 0 ? sample * 0x8000 : sample * 0x7fff,
-        true
-      );
-      offset += 2;
-    }
-  }
-
-  return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
@@ -633,4 +547,60 @@ function downloadBlob(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+async function initializeWaveform(
+  id: string,
+  audioBuffer: AudioBuffer,
+  start: (duration: number) => number,
+  end: (duration: number) => number
+) {
+  const waveform = WaveSurfer.create({
+    container: `#${id}`,
+    waveColor: randomColor(),
+    progressColor: randomColor(),
+    sampleRate: audioBuffer.sampleRate,
+  });
+
+  const region = RegionsPlugin.create();
+  waveform.registerPlugin(region);
+
+  waveform.on('decode', (duration) => {
+    dataLoaded(id);
+    regionCreated({
+      region: region.addRegion({
+        start: start(duration),
+        end: end(duration),
+        color: randomColor(),
+        drag: true,
+        resize: true,
+      }),
+      waveformId: id,
+    });
+  });
+  waveform.on('finish', () => {
+    playButtonClicked({
+      waveformId: id,
+      action: 'pause',
+    });
+  });
+
+  region.enableDragSelection({
+    color: 'rgba(255, 0, 0, 0.1)',
+  });
+
+  region.on('region-updated', (region) => {
+    regionUpdated({
+      waveformId: id,
+      region: region,
+    });
+    console.log('Updated region', region);
+  });
+
+  await waveform.loadBlob(audioBufferToWavBlob(audioBuffer));
+
+  return {
+    waveform,
+    region,
+  };
 }

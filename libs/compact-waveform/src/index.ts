@@ -4,4 +4,6 @@ export {
   exportClicked,
   durationChanged,
   errorOccurred,
+  userRegionUpdateRequested,
+  userDurationChanged
 } from './lib/model';

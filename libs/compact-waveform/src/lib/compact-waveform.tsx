@@ -1,14 +1,17 @@
 import { Play, Pause } from 'lucide-react';
 import { FC } from 'react';
+import { playButtonClicked, $playingState, $dataState } from './model';
 import { useStoreMap } from 'effector-react';
-import { $dataState, $playingState, playButtonClicked } from './model';
 
 export interface CompactWaveformProps {
   title: string;
   id: string;
 }
 
-export const CompactWaveform: FC<CompactWaveformProps> = ({ title, id }) => {
+export const CompactWaveform: FC<CompactWaveformProps> = ({
+  title,
+  id,
+}) => {
   const isPlaying = useStoreMap({
     store: $playingState,
     keys: [id],
@@ -20,7 +23,6 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({ title, id }) => {
     keys: [id],
     fn: (state) => state[id] ?? false,
   });
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex items-center justify-between mb-4">
