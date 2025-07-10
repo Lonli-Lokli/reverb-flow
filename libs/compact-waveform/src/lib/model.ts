@@ -601,7 +601,7 @@ async function initializeWaveform(
     waveColor: randomColor(),
     progressColor: randomColor(),
     interact: false,
-
+    dragToSeek: false,
     sampleRate: audioBuffer.sampleRate,
   });
 
