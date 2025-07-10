@@ -3,6 +3,9 @@
   "include": [],
   "references": [
     {
+      "path": "../window-controller"
+    },
+    {
       "path": "./tsconfig.lib.json"
     }
   ],

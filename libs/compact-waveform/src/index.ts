@@ -2,8 +2,10 @@ export * from './lib/compact-waveform';
 export {
   audioSelected,
   exportClicked,
-  durationChanged,
+  durationChangedByMove,
+  durationChangedBySlider,
   errorOccurred,
   userRegionUpdateRequested,
-  userDurationChanged
+  audioLoaded,
+  audioRemoved
 } from './lib/model';

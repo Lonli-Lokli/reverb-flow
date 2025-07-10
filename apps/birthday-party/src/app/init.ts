@@ -1,5 +1,6 @@
 import * as audioUploader from '@birthday-party/audio-uploader';
 import * as compactWaveform from '@birthday-party/compact-waveform';
+import * as windowController from '@birthday-party/window-controller';
 import * as app from './model';
 import { sample } from 'effector';
 
@@ -14,26 +15,30 @@ sample({
 });
 
 sample({
+  clock: audioUploader.clearFile,
+  target: [compactWaveform.audioRemoved, app.audioRemoved],
+})
+sample({
   clock: app.exportClicked,
   target: compactWaveform.exportClicked,
 })
 
 sample({
-  clock: compactWaveform.durationChanged,
-  target: app.audioDurationChanged,
+  clock: compactWaveform.durationChangedByMove,
+  target: windowController.durationChangedByMove,
 })
 
 sample({
-  clock: app.userDurationChanged,
-  target: compactWaveform.userDurationChanged
+  clock: windowController.durationChangedBySlider,
+  target: compactWaveform.durationChangedBySlider
+})
+
+sample({
+  clock: compactWaveform.audioLoaded,
+  target: app.audioLoaded
 })
 sample({
   clock: compactWaveform.errorOccurred,
   target: app.$error,
 })
 
-sample({
-  clock: app.userDurationChanged,
-  fn: (duration) => ({ duration }),
-  target: compactWaveform.userRegionUpdateRequested,
-})

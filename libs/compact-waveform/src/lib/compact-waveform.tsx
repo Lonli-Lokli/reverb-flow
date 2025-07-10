@@ -50,7 +50,7 @@ export const CompactWaveform: FC<CompactWaveformProps> = ({
         </button>
       </div>
 
-      <div className="relative">
+      <div className="relative">        
         <div id={id} />
         {isLoaded ? null : <LoadingIndicator />}
       </div>

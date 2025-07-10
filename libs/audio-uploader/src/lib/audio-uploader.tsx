@@ -23,8 +23,7 @@ export const AudioUploader: FC<PropsWithChildren> = ({ children }) => {
     selectedFile,
     youtubeUrl,
     hasFile,
-    isUploading,
-    isDownloading
+    isUploading
   ] = useUnit([
     $selectedFile,
     $youtubeUrl,
@@ -66,15 +65,6 @@ export const AudioUploader: FC<PropsWithChildren> = ({ children }) => {
     fileInputRef.current?.click();
   };
 
-  const handleYoutubeUrlChange = (e: ChangeEvent<HTMLInputElement>) => {
-    youtubeUrlChanged(e.target.value);
-  };
-
-  const handleYoutubeDownload = () => {
-    if (youtubeUrl.trim()) {
-      downloadFromYoutubeFx(youtubeUrl.trim());
-    }
-  };
 
   const handleClearFile = () => {
     clearFile();
@@ -166,59 +156,6 @@ export const AudioUploader: FC<PropsWithChildren> = ({ children }) => {
               <p className="text-sm text-gray-600 mt-3 font-medium">Uploading...</p>
             </div>
           )}
-        </div>
-
-        {/* Divider */}
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-gradient-to-br from-slate-50 to-blue-50 text-gray-600 font-medium">or</span>
-          </div>
-        </div>
-
-        {/* YouTube URL Input */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-gray-200">
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="youtube-url" className="block text-sm font-semibold text-gray-800 mb-3">
-                YouTube URL
-              </label>
-              <div className="space-y-3">
-                <input
-                  id="youtube-url"
-                  type="url"
-                  value={youtubeUrl}
-                  onChange={handleYoutubeUrlChange}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 bg-white text-gray-900 placeholder-gray-500"
-                  disabled={isDownloading}
-                />
-                <button
-                  onClick={handleYoutubeDownload}
-                  disabled={!youtubeUrl.trim() || isDownloading}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2 font-medium shadow-sm hover:shadow-md disabled:shadow-none"
-                >
-                  {isDownloading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Downloading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-5 w-5" />
-                      <span>Download Audio</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border">
-              We'll extract the audio from the YouTube video
-            </p>
-          </div>
         </div>
       </div>
     </div>

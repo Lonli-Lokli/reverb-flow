@@ -1,1 +1,1 @@
-export * from './lib/window-controller';
+export * from './lib';

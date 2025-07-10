@@ -6,39 +6,6 @@ import RegionsPlugin, {
 } from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 
-const ffmpeg = new FFmpeg();
-const audioContexts = new Map<number, AudioContext>();
-
-// A factory function to get or create an AudioContext for a specific sample rate
-const getAudioContext = (sampleRate: number): AudioContext => {
-  if (audioContexts.has(sampleRate)) {
-    return audioContexts.get(sampleRate)!;
-  }
-
-  try {
-    const context = new (window.AudioContext ||
-      (window as any).webkitAudioContext)({
-      sampleRate: sampleRate,
-    });
-    audioContexts.set(sampleRate, context);
-    return context;
-  } catch (e) {
-    console.error(
-      `Failed to create an AudioContext with sample rate ${sampleRate}. Falling back.`,
-      e
-    );
-    // Fallback for older browsers or systems that don't support specifying sample rate
-    const fallbackKey = 0; // Use 0 as the key for the default context
-    if (audioContexts.has(fallbackKey)) {
-      return audioContexts.get(fallbackKey)!;
-    }
-    const fallbackContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-    audioContexts.set(fallbackKey, fallbackContext);
-    return fallbackContext;
-  }
-};
-
 export const audioSelected = createEvent<{
   file: File;
   originalId: string;
@@ -56,17 +23,26 @@ export const regionUpdated = createEvent<{
 
 export const playButtonClicked = createEvent<{
   waveformId: string;
-  action: 'play' | 'pause';
+  action: 'play' | 'pause' | 'restart';
 }>();
 
 export const userRegionUpdateRequested = createEvent<{
   duration: number;
 }>();
+export const audioLoaded = createEvent();
+export const audioRemoved = createEvent();
 
 const dataLoaded = createEvent<string>();
 export const exportClicked = createEvent();
-export const durationChanged = createEvent<number>();
-export const userDurationChanged = createEvent<number>();
+export const durationChangedByMove = createEvent<{
+  start: number;
+  end: number;
+  totalDuration: number;
+}>();
+export const durationChangedBySlider = createEvent<{
+  start: number;
+  end: number;
+}>();
 
 const $audios = createStore<Record<string, AudioBuffer>>({});
 export const $playingState = createStore<Record<string, boolean>>({});
@@ -95,12 +71,15 @@ const processAudioFx = createEffect<
   }
 >();
 
-const mirrorRegionFx = createEffect<
+const updateRegionsFx = createEffect<
   {
-    waveformId: string;
-    duration: number;
-    region: Region;
+    toModify: {
+      id: string;
+      start: number;
+      end: number;
+    }[];
     regions: Record<string, Region>;
+    waveforms: Record<string, WaveSurfer>;
   },
   void
 >();
@@ -109,7 +88,7 @@ const playRegionsFx = createEffect<
   {
     regions: Record<string, Region>;
     waveforms: Record<string, WaveSurfer>;
-    action: 'play' | 'pause';
+    action: 'play' | 'pause' | 'restart';
     waveformId: string;
   },
   void
@@ -150,10 +129,10 @@ const exportRegionsFx = createEffect<
 sample({
   clock: [
     processAudioFx.failData,
-    mirrorRegionFx.failData,
+    updateRegionsFx.failData,
     exportRegionsFx.failData,
   ],
-  target: [errorOccurred, logErrorFx]
+  target: [errorOccurred, logErrorFx],
 });
 
 sample({
@@ -167,6 +146,44 @@ sample({
   target: exportRegionsFx,
 });
 
+createAction({
+  clock: regionUpdated,
+  source: { $regions, $waveforms, $playingState },
+  target: { updateRegionsFx, durationChangedByMove, playButtonClicked },
+  fn: (target, { regions, waveforms, playingState }, change) => {
+    target.updateRegionsFx({
+      toModify: [
+        {
+          id: change.waveformId === 'original' ? 'reversed' : 'original',
+          start: waveforms['original'].getDuration() - change.region.end,
+          end: waveforms['original'].getDuration() - change.region.start,
+        },
+      ],
+      regions,
+      waveforms,
+    });
+
+    target.durationChangedByMove({
+      start:
+        change.waveformId === 'original'
+          ? change.region.start
+          : waveforms['original'].getDuration() - change.region.end,
+      end:
+        change.waveformId === 'original'
+          ? change.region.end
+          : waveforms['original'].getDuration() - change.region.start,
+      totalDuration: waveforms['original'].getDuration(),
+    });
+
+    if (playingState[change.waveformId]) {
+      target.playButtonClicked({
+        waveformId: change.waveformId,
+        action: 'restart',
+      });
+    }
+  },
+});
+
 sample({
   clock: userRegionUpdateRequested,
   source: { regions: $regions, waveforms: $waveforms },
@@ -176,6 +193,151 @@ sample({
     waveforms,
   }),
   target: updateRegionsFromUserInputFx,
+});
+
+createAction({
+  clock: playButtonClicked,
+  source: { $regions, $waveforms },
+  target: { $playingState, playRegionsFx },
+  fn: (target, { regions, waveforms }, change) => {
+    const newPlayingState = Object.keys(waveforms).reduce<
+      Record<string, boolean>
+    >((acc, curr) => {
+      acc[curr] =
+        change.action === 'pause' ? false : curr === change.waveformId;
+      return acc;
+    }, {});
+    target.$playingState(newPlayingState);
+    target.playRegionsFx({
+      regions,
+      waveforms,
+      action: change.action,
+      waveformId: change.waveformId,
+    });
+  },
+});
+
+sample({
+  clock: regionCreated,
+  batch: false,
+  source: $regions,
+  fn: (regions, { waveformId, region }) => ({
+    ...regions,
+    [waveformId]: region,
+  }),
+  target: $regions,
+});
+
+sample({
+  source: { waveforms: $waveforms, regions: $regions },
+  filter: ({ waveforms, regions }) => {
+    return 'original' in regions && 'original' in waveforms;
+  },
+  fn: ({ waveforms, regions }) => {
+    return {
+      start: regions['original'].start,
+      end: regions['original'].end,
+      totalDuration: waveforms['original'].getDuration(),
+    };
+  },
+  target: durationChangedByMove,
+});
+
+sample({
+  clock: dataLoaded,
+  batch: false,
+  source: $dataState,
+  fn: (dataState, id) => ({
+    ...dataState,
+    [id]: true,
+  }),
+  target: [$dataState, audioLoaded],
+});
+
+createAction({
+  clock: processAudioFx.doneData,
+  target: { $audios, $waveforms },
+  fn: (target, change) => {
+    target.$audios((audios) => ({
+      ...audios,
+      [change.original.id]: change.original.audioBuffer,
+      [change.reversed.id]: change.reversed.audioBuffer,
+    }));
+
+    target.$waveforms((waveforms) => ({
+      ...waveforms,
+      [change.original.id]: change.original.waveForm,
+      [change.reversed.id]: change.reversed.waveForm,
+    }));
+  },
+});
+
+createAction({
+  clock: durationChangedBySlider,
+  source: { $regions, $waveforms },
+  target: { updateRegionsFx },
+  fn: (target, { regions, waveforms }, change) => {
+    target.updateRegionsFx({
+      toModify: [
+        {
+          id: 'original',
+          start: change.start,
+          end: change.end,
+        },
+        {
+          id: 'reversed',
+          start: waveforms['original'].getDuration() - change.end,
+          end: waveforms['original'].getDuration() - change.start,
+        },
+      ],
+      regions,
+      waveforms,
+    });
+  },
+});
+
+sample({
+  clock: audioRemoved,
+  target: [
+    $audios.reinit,
+    $waveforms.reinit,
+    $regions.reinit,
+    $dataState.reinit,
+    $playingState.reinit,
+    $trackName.reinit,
+  ],
+});
+updateRegionsFx.use(async ({ toModify, regions, waveforms }) => {
+  toModify.forEach(({ id, start, end }) => {
+    const changingRegion = regions[id];
+    changingRegion.setOptions({
+      start: start,
+      end: Math.min(end, waveforms[id].getDuration()),
+    });
+  });
+});
+
+playRegionsFx.use(({ action, regions, waveforms, waveformId }) => {
+  Object.entries(waveforms).forEach(([id, waveform]) => {
+    switch (action) {
+      case 'play':
+        if (id === waveformId) {
+          waveform.play(regions[id]?.start || 0, regions[id]?.end);
+        } else {
+          waveform.pause();
+        }
+        break;
+      case 'pause':
+        waveform.pause();
+        break;
+      case 'restart':
+        waveform.pause();
+        if (id === waveformId) {
+          waveform.play(regions[id]?.start || 0, regions[id]?.end);
+        }
+        break;
+    }
+  });
 });
 
 processAudioFx.use(async ({ file, originalId, reversedId }) => {
@@ -230,127 +392,6 @@ processAudioFx.use(async ({ file, originalId, reversedId }) => {
       audioBuffer: reversedAudioBuffer,
     },
   };
-});
-
-mirrorRegionFx.use(async ({ region, regions, waveformId, duration }) => {
-  Object.entries(regions).forEach(([id, r]) => {
-    if (id === waveformId) {
-      // do nothing
-    } else {
-      const newRegion =
-        waveformId === 'original'
-          ? {
-              start: duration - region.end,
-              end: duration - region.start,
-            }
-          : {
-              start: duration - region.end,
-              end: duration - region.start,
-            };
-
-      r.setOptions({
-        start: newRegion.start,
-        end: newRegion.end,
-      });
-    }
-  });
-});
-
-createAction({
-  clock: playButtonClicked,
-  source: { $regions, $waveforms },
-  target: { $playingState, playRegionsFx },
-  fn: (target, { regions, waveforms }, change) => {
-    const newPlayingState = Object.keys(waveforms).reduce<
-      Record<string, boolean>
-    >((acc, curr) => {
-      acc[curr] =
-        change.action === 'pause' ? false : curr === change.waveformId;
-      return acc;
-    }, {});
-    target.$playingState(newPlayingState);
-    target.playRegionsFx({
-      regions,
-      waveforms,
-      action: change.action,
-      waveformId: change.waveformId,
-    });
-  },
-});
-
-sample({
-  clock: regionCreated,
-  batch: false,
-  source: $regions,
-  fn: (regions, { waveformId, region }) => ({
-    ...regions,
-    [waveformId]: region,
-  }),
-  target: $regions,
-});
-
-sample({
-  clock: regionCreated,
-  fn: (r) => r.region.end - r.region.start,
-  target: durationChanged,
-});
-createAction({
-  clock: regionUpdated,
-  source: { $waveforms, $regions },
-  target: { mirrorRegionFx, durationChanged },
-  fn: (target, { waveforms, regions }, change) => {
-    target.mirrorRegionFx({
-      waveformId: change.waveformId,
-      regions: regions,
-      duration: waveforms[change.waveformId].getDuration(),
-      region: change.region,
-    });
-
-    target.durationChanged(Math.round(change.region.end - change.region.start));
-  },
-});
-
-sample({
-  clock: dataLoaded,
-  batch: false,
-  source: $dataState,
-  fn: (dataState, id) => ({
-    ...dataState,
-    [id]: true,
-  }),
-  target: $dataState,
-});
-
-createAction({
-  clock: processAudioFx.doneData,
-  target: { $audios, $waveforms },
-  fn: (target, change) => {
-    target.$audios((audios) => ({
-      ...audios,
-      [change.original.id]: change.original.audioBuffer,
-      [change.reversed.id]: change.reversed.audioBuffer,
-    }));
-
-    target.$waveforms((waveforms) => ({
-      ...waveforms,
-      [change.original.id]: change.original.waveForm,
-      [change.reversed.id]: change.reversed.waveForm,
-    }));
-  },
-});
-
-playRegionsFx.use(({ action, regions, waveforms, waveformId }) => {
-  Object.entries(waveforms).forEach(([id, waveform]) => {
-    if (action === 'pause') {
-      waveform.pause();
-    } else {
-      if (id === waveformId) {
-        waveform.play(regions[id]?.start || 0, regions[id]?.end);
-      } else {
-        waveform.pause();
-      }
-    }
-  });
 });
 
 updateRegionsFromUserInputFx.use(({ duration, regions, waveforms }) => {
@@ -559,6 +600,8 @@ async function initializeWaveform(
     container: `#${id}`,
     waveColor: randomColor(),
     progressColor: randomColor(),
+    interact: false,
+
     sampleRate: audioBuffer.sampleRate,
   });
 
@@ -573,7 +616,7 @@ async function initializeWaveform(
         end: end(duration),
         color: randomColor(),
         drag: true,
-        resize: true,
+        resize: false,
       }),
       waveformId: id,
     });
@@ -604,3 +647,36 @@ async function initializeWaveform(
     region,
   };
 }
+
+const ffmpeg = new FFmpeg();
+const audioContexts = new Map<number, AudioContext>();
+
+// A factory function to get or create an AudioContext for a specific sample rate
+const getAudioContext = (sampleRate: number): AudioContext => {
+  if (audioContexts.has(sampleRate)) {
+    return audioContexts.get(sampleRate)!;
+  }
+
+  try {
+    const context = new (window.AudioContext ||
+      (window as any).webkitAudioContext)({
+      sampleRate: sampleRate,
+    });
+    audioContexts.set(sampleRate, context);
+    return context;
+  } catch (e) {
+    console.error(
+      `Failed to create an AudioContext with sample rate ${sampleRate}. Falling back.`,
+      e
+    );
+    // Fallback for older browsers or systems that don't support specifying sample rate
+    const fallbackKey = 0; // Use 0 as the key for the default context
+    if (audioContexts.has(fallbackKey)) {
+      return audioContexts.get(fallbackKey)!;
+    }
+    const fallbackContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
+    audioContexts.set(fallbackKey, fallbackContext);
+    return fallbackContext;
+  }
+};

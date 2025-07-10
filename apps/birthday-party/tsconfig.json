@@ -3,6 +3,9 @@
   "include": [],
   "references": [
     {
+      "path": "../../libs/window-controller"
+    },
+    {
       "path": "../../libs/compact-waveform"
     },
     {

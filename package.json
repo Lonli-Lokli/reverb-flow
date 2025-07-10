@@ -18,7 +18,7 @@
     "googlevideo": "^3.0.0",
     "lucide-react": "^0.525.0",
     "music-metadata": "^11.4.0",
-    "patronum": "2.3.0",
+    "patronum": "^2.3.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tone": "^15.1.22",
